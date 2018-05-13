@@ -34,21 +34,12 @@ type Rule id entity world scene
         }
 
 
-valuateRule : id -> entity -> Maybe scene -> world -> Rule id entity world scene -> Float
+valuateRule : id -> entity -> Maybe scene -> world -> Rule id entity world scene -> ( Float, Float, Float, Float )
 valuateRule id entity maybeCurrentScene world (Rule rule) =
     let
-        sceneValueScale =
-            100000
-
-        interactionValueScale =
-            10000
-
-        conditionValueScale =
-            100
-
         sceneValue =
             if maybeCurrentScene /= Nothing && rule.scene == maybeCurrentScene then
-                sceneValueScale
+                1
 
             else
                 0
@@ -56,62 +47,54 @@ valuateRule id entity maybeCurrentScene world (Rule rule) =
         interactionValue =
             case rule.interaction of
                 With _ ->
-                    interactionValueScale * 5
+                    2
 
                 WithAny _ ->
-                    interactionValueScale
+                    1
 
                 WithAnything ->
                     0
 
-        conditionValue =
+        ( conditionValue, quantitativeExtension ) =
             List.foldl
-                (\condition acc ->
-                    acc
-                        + (case condition of
-                            Boolean _ ->
-                                conditionValueScale
+                (\condition ( cVal, qExt ) ->
+                    case condition of
+                        Boolean _ ->
+                            ( cVal + 1, qExt )
 
-                            Quantitative n bounds ->
-                                conditionValueScale
-                                    * 0.9
-                                    + conditionValueScale
-                                    * (case bounds of
-                                        Equals _ ->
-                                            0.15
+                        Quantitative n bounds ->
+                            ( cVal + 1
+                            , qExt
+                                + (case bounds of
+                                    Equals _ ->
+                                        3
 
-                                        Between _ _ ->
-                                            0.1
+                                    Between _ _ ->
+                                        2
 
-                                        LessThan _ ->
-                                            0.08
+                                    LessThan _ ->
+                                        1
 
-                                        GreaterThan _ ->
-                                            0.08
+                                    GreaterThan _ ->
+                                        1
 
-                                        LessThanOrEquals _ ->
-                                            0.05
+                                    LessThanOrEquals _ ->
+                                        0
 
-                                        GreaterThanOrEquals _ ->
-                                            0.05
-                                      )
-                          )
+                                    GreaterThanOrEquals _ ->
+                                        0
+                                  )
+                            )
                 )
-                0
+                ( 0, 0 )
                 rule.conditions
     in
-        sceneValue + interactionValue + conditionValue
+        ( sceneValue, interactionValue, conditionValue, quantitativeExtension )
 
 
-runRules : (id -> world -> Maybe entity) -> id -> Maybe scene -> world -> Rules id entity world scene -> world
-runRules getEntity id maybeCurrentScene world rules =
+filterMatchingRules : id -> Maybe scene -> world -> Rules id entity world scene -> entity -> Rules id entity world scene
+filterMatchingRules id maybeCurrentScene world rules entity =
     let
-        (Rules rs) =
-            rules
-
-        maybeEntity =
-            getEntity id world
-
         interactionFilter entity =
             \(Rule rule) ->
                 case rule.interaction of
@@ -166,8 +149,17 @@ runRules getEntity id maybeCurrentScene world rules =
                                             toNum world >= n
                         )
 
-        matchedRulesFilter e =
-            interactionFilter e <&> sceneFilter <&> conditionFilter
+        (Rules rs) =
+            rules
+    in
+        Rules (List.filter (interactionFilter entity <&> sceneFilter <&> conditionFilter) rs)
+
+
+runRules : (id -> world -> Maybe entity) -> id -> Maybe scene -> world -> Rules id entity world scene -> world
+runRules getEntity id maybeCurrentScene world rules =
+    let
+        maybeEntity =
+            getEntity id world
 
         getBestRuleUpdate e (Rules rules) =
             List.map (\rule -> ( valuateRule id e maybeCurrentScene world rule, rule )) rules
@@ -181,9 +173,7 @@ runRules getEntity id maybeCurrentScene world rules =
                 world
 
             Just entity ->
-                rs
-                    |> List.filter (matchedRulesFilter entity)
-                    |> Rules
+                filterMatchingRules id maybeCurrentScene world rules entity
                     |> getBestRuleUpdate entity
                     |> Maybe.withDefault identity
                     |> (|>) world
