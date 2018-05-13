@@ -1,12 +1,12 @@
 {
     "version": "1.0.0",
     "summary": "A generalized rule matcher for interactive stories",
-    "repository": "https://github.com/user/project.git",
+    "repository": "https://github.com/robwhitaker/elm-epic.git",
     "license": "BSD-3-Clause",
     "source-directories": [
         "src"
     ],
-    "exposed-modules": [],
+    "exposed-modules": ["Epic"],
     "dependencies": {
         "elm-lang/core": "5.0.0 <= v < 6.0.0"
     },
