@@ -80,7 +80,7 @@ concat =
 -}
 type InteractionMatcher id entity
     = With id
-    | WithAny (entity -> Bool)
+    | WithAny (Maybe entity -> Bool)
     | WithAnything
 
 
@@ -93,7 +93,7 @@ with =
 
 {-| Matches if the user interacted with any entity that fits the predicate. Produces the second strongest InteractionMatcher.
 -}
-withAny : (entity -> Bool) -> InteractionMatcher id entity
+withAny : (Maybe entity -> Bool) -> InteractionMatcher id entity
 withAny =
     WithAny
 
@@ -208,9 +208,7 @@ type Rule id entity world scene
         { interaction : InteractionMatcher id entity
         , scene : Maybe scene
         , conditions : List (Condition world)
-        , onMatch :
-            world
-            -> world -- TODO: maybe pass in the interacted-with id here?
+        , onMatch : id -> world -> world
         }
 
 
@@ -220,16 +218,15 @@ rule :
     { interaction : InteractionMatcher id entity
     , scene : Maybe scene
     , conditions : List (Condition world)
-    , onMatch :
-        world -> world
+    , onMatch : id -> world -> world
     }
     -> Rule id entity world scene
 rule =
     Rule
 
 
-valuateRule : id -> entity -> Maybe scene -> world -> Rule id entity world scene -> ( Float, Float, Float, Float )
-valuateRule id entity maybeCurrentScene world (Rule rule) =
+valuateRule : id -> Maybe scene -> world -> Rule id entity world scene -> ( Float, Float, Float, Float )
+valuateRule id maybeCurrentScene world (Rule rule) =
     let
         sceneValue =
             if maybeCurrentScene /= Nothing && rule.scene == maybeCurrentScene then
@@ -286,8 +283,8 @@ valuateRule id entity maybeCurrentScene world (Rule rule) =
         ( sceneValue, interactionValue, conditionValue, numericExtension )
 
 
-filterMatchingRules : id -> Maybe scene -> world -> Rules id entity world scene -> entity -> Rules id entity world scene
-filterMatchingRules id maybeCurrentScene world rules entity =
+filterMatchingRules : id -> Maybe scene -> world -> Rules id entity world scene -> Maybe entity -> Rules id entity world scene
+filterMatchingRules id maybeCurrentScene world rules maybeEntity =
     let
         interactionFilter entity =
             \(Rule rule) ->
@@ -346,7 +343,7 @@ filterMatchingRules id maybeCurrentScene world rules entity =
         (Rules rs) =
             rules
     in
-        Rules (List.filter (interactionFilter entity <&> sceneFilter <&> conditionFilter) rs)
+        Rules (List.filter (interactionFilter maybeEntity <&> sceneFilter <&> conditionFilter) rs)
 
 
 {-| Given an interaction, run a set of rules over the world, producing a new world.
@@ -357,22 +354,17 @@ runRules getEntity id maybeCurrentScene world rules =
         maybeEntity =
             getEntity id world
 
-        getBestRuleUpdate e (Rules rules) =
-            List.map (\rule -> ( valuateRule id e maybeCurrentScene world rule, rule )) rules
+        getBestRuleUpdate (Rules rules) =
+            List.map (\rule -> ( valuateRule id maybeCurrentScene world rule, rule )) rules
                 |> List.sortBy Tuple.first
                 |> List.reverse
                 |> List.head
                 |> Maybe.map (Tuple.second >> (\(Rule rule) -> rule.onMatch))
     in
-        case maybeEntity of
-            Nothing ->
-                world
-
-            Just entity ->
-                filterMatchingRules id maybeCurrentScene world rules entity
-                    |> getBestRuleUpdate entity
-                    |> Maybe.withDefault identity
-                    |> (|>) world
+        filterMatchingRules id maybeCurrentScene world rules maybeEntity
+            |> getBestRuleUpdate
+            |> Maybe.withDefault (always identity)
+            |> (\matchedRule -> matchedRule id world)
 
 
 (<&>) : (a -> Bool) -> (a -> Bool) -> (a -> Bool)
