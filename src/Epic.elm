@@ -225,18 +225,18 @@ rule =
     Rule
 
 
-valuateRule : id -> Maybe scene -> world -> Rule id entity world scene -> ( Float, Float, Float, Float )
-valuateRule id maybeCurrentScene world (Rule rule) =
+valuateRule : id -> Maybe scene -> world -> Rule id entity world scene -> List Float 
+valuateRule id maybeCurrentScene world (Rule r) =
     let
         sceneValue =
-            if maybeCurrentScene /= Nothing && rule.scene == maybeCurrentScene then
+            if maybeCurrentScene /= Nothing && r.scene == maybeCurrentScene then
                 1
 
             else
                 0
 
         interactionValue =
-            case rule.interaction of
+            case r.interaction of
                 With _ ->
                     2
 
@@ -278,17 +278,17 @@ valuateRule id maybeCurrentScene world (Rule rule) =
                             )
                 )
                 ( 0, 0 )
-                rule.conditions
+                r.conditions
     in
-        ( sceneValue, interactionValue, conditionValue, numericExtension )
+        [ sceneValue, interactionValue, conditionValue, numericExtension ]
 
 
 filterMatchingRules : id -> Maybe scene -> world -> Rules id entity world scene -> Maybe entity -> Rules id entity world scene
-filterMatchingRules id maybeCurrentScene world rules maybeEntity =
+filterMatchingRules id maybeCurrentScene world (Rules rs) maybeEntity =
     let
         interactionFilter entity =
-            \(Rule rule) ->
-                case rule.interaction of
+            \(Rule r) ->
+                case r.interaction of
                     With id_ ->
                         id == id_
 
@@ -301,14 +301,14 @@ filterMatchingRules id maybeCurrentScene world rules maybeEntity =
         sceneFilter =
             case maybeCurrentScene of
                 Nothing ->
-                    \(Rule rule) -> rule.scene == Nothing
+                    \(Rule r) -> r.scene == Nothing
 
                 Just scene ->
-                    \(Rule rule) -> rule.scene == Nothing || rule.scene == Just scene
+                    \(Rule r) -> r.scene == Nothing || r.scene == Just scene
 
         conditionFilter =
-            \(Rule rule) ->
-                rule.conditions
+            \(Rule r) ->
+                r.conditions
                     |> List.all
                         (\condition ->
                             case condition of
@@ -339,38 +339,32 @@ filterMatchingRules id maybeCurrentScene world rules maybeEntity =
                                         GreaterThanOrEquals n ->
                                             toNum world >= n
                         )
-
-        (Rules rs) =
-            rules
     in
-        Rules (List.filter (interactionFilter maybeEntity <&> sceneFilter <&> conditionFilter) rs)
+        Rules (List.filter (interactionFilter maybeEntity |> and sceneFilter |> and conditionFilter) rs)
 
 
 {-| Given an interaction, run a set of rules over the world, producing a new world.
 -}
 runRules : (id -> world -> Maybe entity) -> id -> Maybe scene -> world -> Rules id entity world scene -> world
-runRules getEntity id maybeCurrentScene world rules =
+runRules getEntity id maybeCurrentScene world rs =
     let
         maybeEntity =
             getEntity id world
 
-        getBestRuleUpdate (Rules rules) =
-            List.map (\rule -> ( valuateRule id maybeCurrentScene world rule, rule )) rules
+        getBestRuleUpdate (Rules rs_) =
+            List.map (\r -> ( valuateRule id maybeCurrentScene world r, r )) rs_
                 |> List.sortBy Tuple.first
                 |> List.reverse
                 |> List.head
-                |> Maybe.map (Tuple.second >> (\(Rule rule) -> rule.onMatch))
+                |> Maybe.map (Tuple.second >> (\(Rule r) -> r.onMatch))
     in
-        filterMatchingRules id maybeCurrentScene world rules maybeEntity
+        filterMatchingRules id maybeCurrentScene world rs maybeEntity
             |> getBestRuleUpdate
             |> Maybe.withDefault (always identity)
             |> (\matchedRule -> matchedRule id world)
 
 
-(<&>) : (a -> Bool) -> (a -> Bool) -> (a -> Bool)
-(<&>) p1 p2 =
+and : (a -> Bool) -> (a -> Bool) -> (a -> Bool)
+and p1 p2 =
     \a ->
         p1 a && p2 a
-
-
-infixl 3 <&>
