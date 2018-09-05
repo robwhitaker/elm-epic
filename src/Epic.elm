@@ -18,7 +18,8 @@ module Epic
         , rule
         , runRules
         , with
-        , withAny
+        , withAnyId
+        , withAnyEntity
         , withAnything
         )
 
@@ -41,7 +42,7 @@ the tools to define conditions such as those yourself.
 
 ## Interaction matching
 
-@docs InteractionMatcher, with, withAny, withAnything
+@docs InteractionMatcher, with, withAnyId, withAnyEntity, withAnything
 
 
 ## Conditions
@@ -80,7 +81,8 @@ concat =
 -}
 type InteractionMatcher id entity
     = With id
-    | WithAny (Maybe entity -> Bool)
+    | WithAnyId (id -> Bool)
+    | WithAnyEntity (Maybe entity -> Bool)
     | WithAnything
 
 
@@ -90,12 +92,17 @@ with : id -> InteractionMatcher id entity
 with =
     With
 
-
-{-| Matches if the user interacted with any entity that fits the predicate. Produces the second strongest InteractionMatcher.
+{-| Matches if the user interacted with any id that fits the predicate. Produces the second strongest InterationMatcher.
 -}
-withAny : (Maybe entity -> Bool) -> InteractionMatcher id entity
-withAny =
-    WithAny
+withAnyId : (id -> Bool) -> InteractionMatcher id entity
+withAnyId =
+    WithAnyId
+
+{-| Matches if the user interacted with any entity that fits the predicate. Produces the third strongest InteractionMatcher. 
+-}
+withAnyEntity : (Maybe entity -> Bool) -> InteractionMatcher id entity
+withAnyEntity =
+    WithAnyEntity
 
 
 {-| Matches if the user interacted with anything. Produces the weakest InteractionMatcher.
@@ -238,9 +245,12 @@ valuateRule id maybeCurrentScene world (Rule r) =
         interactionValue =
             case r.interaction of
                 With _ ->
+                    3
+
+                WithAnyId _ ->
                     2
 
-                WithAny _ ->
+                WithAnyEntity _ ->
                     1
 
                 WithAnything ->
@@ -292,7 +302,10 @@ filterMatchingRules id maybeCurrentScene world (Rules rs) maybeEntity =
                     With id_ ->
                         id == id_
 
-                    WithAny p ->
+                    WithAnyId p ->
+                        p id
+
+                    WithAnyEntity p ->
                         p entity
 
                     WithAnything ->
