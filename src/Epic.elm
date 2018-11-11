@@ -5,6 +5,7 @@ module Epic
         , InteractionMatcher
         , Rule
         , Rules
+        , RuleDefinition
         , between
         , boolean
         , concat
@@ -37,7 +38,7 @@ the tools to define conditions such as those yourself.
 
 ## Rule
 
-@docs Rule, rule
+@docs Rule, RuleDefinition, rule
 
 
 ## Interaction matching
@@ -211,25 +212,24 @@ greaterThanOrEquals =
 the onMatch function will be run over the world, producing a new world.
 -}
 type Rule id entity world scene
-    = Rule
-        { interaction : InteractionMatcher id entity
-        , scene : Maybe scene
-        , conditions : List (Condition world)
-        , onMatch : id -> world -> world
-        }
+    = Rule (RuleDefinition id entity world scene)
 
 
 {-| A function to make a `Rule`.
 -}
-rule :
+rule : RuleDefinition id entity world scene -> Rule id entity world scene
+rule =
+    Rule
+
+
+{-| A record to pass into the `rule` function to define a rule.
+-}
+type alias RuleDefinition id entity world scene =
     { interaction : InteractionMatcher id entity
     , scene : Maybe scene
     , conditions : List (Condition world)
     , onMatch : id -> world -> world
     }
-    -> Rule id entity world scene
-rule =
-    Rule
 
 
 valuateRule : id -> Maybe scene -> world -> Rule id entity world scene -> List Float 
