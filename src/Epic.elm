@@ -1,33 +1,11 @@
-module Epic
-    exposing
-        ( Bounds
-        , Condition
-        , HandlerM
-        , InteractionHandler
-        , InteractionMatcher
-        , Rule
-        , Rules
-        , RuleDefinition
-        , andHandler
-        , between
-        , boolean
-        , concat
-        , equals
-        , fromList
-        , greaterThan
-        , greaterThanOrEquals
-        , handler
-        , lessThan
-        , lessThanOrEquals
-        , numeric
-        , rule
-        , runHandler
-        , runRules
-        , with
-        , withAnyId
-        , withAnyEntity
-        , withAnything
-        )
+module Epic exposing
+    ( Rules, fromList, concat
+    , Rule, RuleDefinition, rule
+    , InteractionMatcher, with, withAnyId, withAnyEntity, withAnything
+    , InteractionHandler, HandlerM, handler, andHandler, runHandler
+    , Condition, boolean, numeric, Bounds, equals, between, lessThan, greaterThan, lessThanOrEquals, greaterThanOrEquals
+    , runRules
+    )
 
 {-| This module allows you to define a set of rules which will
 match depending on the current state of your world. This is a
@@ -50,9 +28,11 @@ the tools to define conditions such as those yourself.
 
 @docs InteractionMatcher, with, withAnyId, withAnyEntity, withAnything
 
+
 ## Interaction handling
 
 @docs InteractionHandler, HandlerM, handler, andHandler, runHandler
+
 
 ## Conditions
 
@@ -101,13 +81,15 @@ with : id -> InteractionMatcher id entity
 with =
     With
 
+
 {-| Matches if the user interacted with any id that fits the predicate. Produces the second strongest InterationMatcher.
 -}
 withAnyId : (id -> Bool) -> InteractionMatcher id entity
 withAnyId =
     WithAnyId
 
-{-| Matches if the user interacted with any entity that fits the predicate. Produces the third strongest InteractionMatcher. 
+
+{-| Matches if the user interacted with any entity that fits the predicate. Produces the third strongest InteractionMatcher.
 -}
 withAnyEntity : (Maybe entity -> Bool) -> InteractionMatcher id entity
 withAnyEntity =
@@ -130,22 +112,26 @@ type Condition id entity world
 
 {-| Creates a condition that matches when the predicate returns True.
 
-    type alias World = { playerLocation : String }
+    type alias World =
+        { playerLocation : String }
 
     playerIsInLivingRoom : Condition World
-    playerIsInLivingRoom = boolean (\id maybeEntity world -> 
-            world.playerLocation == "Living Room"
-        )
+    playerIsInLivingRoom =
+        boolean
+            (\id maybeEntity world ->
+                world.playerLocation == "Living Room"
+            )
 
 -}
-boolean : (InteractionHandler id entity world Bool) -> Condition id entity world
+boolean : InteractionHandler id entity world Bool -> Condition id entity world
 boolean =
     Boolean
 
 
 {-| Creates a condition that matches when the returned number is within the specified bounds.
 
-    type alias World = { inventory : List Item }
+    type alias World =
+        { inventory : List Item }
 
     getNumApples : World -> Float
     getNumApples world =
@@ -155,10 +141,11 @@ boolean =
             |> toFloat
 
     playerHasSomeApples : Condition World
-    playerHasSomeApples = numeric (between 3 10) (\_ _ -> getNumApples)
+    playerHasSomeApples =
+        numeric (between 3 10) (\_ _ -> getNumApples)
 
 -}
-numeric : Bounds -> (InteractionHandler id entity world Float) -> Condition id entity world
+numeric : Bounds -> InteractionHandler id entity world Float -> Condition id entity world
 numeric =
     Numeric
 
@@ -231,11 +218,13 @@ rule : RuleDefinition id entity world scene -> Rule id entity world scene
 rule =
     Rule
 
+
 {-| A function that can return a result based on an interaction. Used for conditions and
 rule match handling.
 -}
-type alias InteractionHandler id entity world a
-    = id -> Maybe entity -> world -> a
+type alias InteractionHandler id entity world a =
+    id -> Maybe entity -> world -> a
+
 
 {-| A wrapper type around InteractionHandler used for chaining handlers together in
 onMatch functions.
@@ -243,12 +232,14 @@ onMatch functions.
 type HandlerM id entity world
     = HandlerM (InteractionHandler id entity world world)
 
+
 {-| Construct a HandlerM from an InteractionHandler.
 -}
 handler : InteractionHandler id entity world world -> HandlerM id entity world
 handler f =
     HandlerM
-        (\id maybeEntity world -> f id maybeEntity world) 
+        (\id maybeEntity world -> f id maybeEntity world)
+
 
 {-| Chain another handler together with a HandlerM.
 -}
@@ -257,11 +248,13 @@ andHandler f (HandlerM h) =
     HandlerM
         (\id maybeEntity world -> f id maybeEntity (h id maybeEntity world))
 
+
 {-| Provide the id, entity, and world to actually run the HandlerM.
 -}
 runHandler : HandlerM id entity world -> InteractionHandler id entity world world
 runHandler (HandlerM h) id maybeEntity world =
     h id maybeEntity world
+
 
 {-| A record to pass into the `rule` function to define a rule.
 -}
@@ -273,7 +266,7 @@ type alias RuleDefinition id entity world scene =
     }
 
 
-valuateRule : id -> Maybe scene -> world -> Rule id entity world scene -> List Float 
+valuateRule : id -> Maybe scene -> world -> Rule id entity world scene -> List Float
 valuateRule id maybeCurrentScene world (Rule r) =
     let
         sceneValue =
@@ -331,7 +324,7 @@ valuateRule id maybeCurrentScene world (Rule r) =
                 ( 0, 0 )
                 r.conditions
     in
-        [ sceneValue, interactionValue, conditionValue, numericExtension ]
+    [ sceneValue, interactionValue, conditionValue, numericExtension ]
 
 
 filterMatchingRules : id -> Maybe entity -> Maybe scene -> world -> Rules id entity world scene -> Rules id entity world scene
@@ -379,7 +372,7 @@ filterMatchingRules id maybeEntity maybeCurrentScene world (Rules rs) =
                                                 n =
                                                     toNum id maybeEntity world
                                             in
-                                                n >= n1 && n <= n2
+                                            n >= n1 && n <= n2
 
                                         LessThan n ->
                                             toNum id maybeEntity world < n
@@ -394,7 +387,7 @@ filterMatchingRules id maybeEntity maybeCurrentScene world (Rules rs) =
                                             toNum id maybeEntity world >= n
                         )
     in
-        Rules (List.filter (interactionFilter |> and sceneFilter |> and conditionFilter) rs)
+    Rules (List.filter (interactionFilter |> and sceneFilter |> and conditionFilter) rs)
 
 
 {-| Given an interaction, run a set of rules over the world, producing a new world.
@@ -412,10 +405,10 @@ runRules getEntity id maybeCurrentScene world rs =
                 |> List.head
                 |> Maybe.map (Tuple.second >> (\(Rule r) -> r.onMatch))
     in
-        filterMatchingRules id maybeEntity maybeCurrentScene world rs 
-            |> getBestRuleUpdate
-            |> Maybe.withDefault (\_ _ w-> w)
-            |> (\matchedRule -> matchedRule id maybeEntity world)
+    filterMatchingRules id maybeEntity maybeCurrentScene world rs
+        |> getBestRuleUpdate
+        |> Maybe.withDefault (\_ _ w -> w)
+        |> (\matchedRule -> matchedRule id maybeEntity world)
 
 
 and : (a -> Bool) -> (a -> Bool) -> (a -> Bool)
