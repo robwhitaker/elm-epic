@@ -237,8 +237,7 @@ type HandlerM id entity world
 -}
 handler : InteractionHandler id entity world world -> HandlerM id entity world
 handler f =
-    HandlerM
-        (\id maybeEntity world -> f id maybeEntity world)
+    HandlerM f
 
 
 {-| Chain another handler together with a HandlerM.
